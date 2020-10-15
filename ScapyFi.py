@@ -5,15 +5,34 @@ import sys
 import signal
 import os
 
+#Gloabal variables:
+interface = ""
+TGREEN =  '\033[32m' # Green Text
+TWHITE = '\033[37m' #White (default) Text
+
+banner = """
+  ___                    ___ _
+ / __| __ __ _ _ __ _  _| __(_)
+ \__ \/ _/ _` | '_ \ || | _|| |
+ |___/\__\__,_| .__/\_, |_| |_|
+              |_|   |__/
+
+Version: 0.1
+Author: Guyard Félix
+Use for educational purpose only.
+
+"""
 #Tool Functions#
 
 
 #Handle the ctrl+C to disable the monitoring mode and restore network adapter.
-def signal_handler(signal,frame,interface):
-    print("\nDisabling monitoring mode on network adpater...")
+def signal_handler(signal,frame):
+    print("\nDisabling monitoring mode on network adpater...",end='')
     os.system("ip link set " + interface + " down")
     os.system("iw "+ interface + " set type managed")
     os.system("ip link set " + interface +" up")
+    os.system("NetworkManager")
+    print(TGREEN + "done" + TWHITE)
     sys.exit(1)
 
 
@@ -37,38 +56,21 @@ def check_args():
 
 #Enable monitoring mode on the given interface
 def enable_monitoring(interface_name):
-    print("Activating monitoring mode on" + str(interface_name) + "...")
+    print("Activating monitoring mode on " + str(interface_name) + "...",end='')
     os.system("killall wpa_supplicant")
     os.system("killall NetworkManager")
     os.system("ip link set " + interface_name + " down")
     os.system("iw "+ interface_name + " set monitor control")
     os.system("ip link set " + interface_name + " up")
-    print("done.")
+    print(TGREEN + "done." + TWHITE)
 
 #The main Program#
-
-TGREEN =  '\033[32m' # Green Text
-TWHITE = '\033[37m' #White (default) Text
-
 check_root() #Check if the user is root
 interface = check_args()
 os.system("clear")
-#enable_monitoring(interface)
-#signal.signal(signal.SIGINT,signal_handler) #Handle the ctrl+c command
-
-banner = """
-  ___                    ___ _
- / __| __ __ _ _ __ _  _| __(_)
- \__ \/ _/ _` | '_ \ || | _|| |
- |___/\__\__,_| .__/\_, |_| |_|
-              |_|   |__/
-
-Version: 0.1
-Author: Guyard Félix
-Use for educational purpose only.
-
-"""
 print(banner)
+enable_monitoring(interface)
+signal.signal(signal.SIGINT,signal_handler) #Handle the ctrl+c command
 print("+ Wifi interface in use : " + TGREEN +  str(interface) + TWHITE)
 
 print("\nSelect the module you want to use:")
