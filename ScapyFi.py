@@ -17,7 +17,7 @@ banner = """
  |___/\__\__,_| .__/\_, |_| |_|
               |_|   |__/
 
-Version: 0.1
+Version: 0.2
 Author: Guyard Félix
 Use for educational purpose only.
 
@@ -51,6 +51,12 @@ def check_args():
         print("Argument "+ str(sys.argv[1]) + " not understood")
         print("Usage : ScapyFi.py -i interface_name")
         exit(1)
+    path = "/sys/class/net/"+sys.argv[2]
+    if(not os.path.exists(path)):
+        print("Interface not found.")
+        exit(1)
+
+
     return sys.argv[2]
 
 
@@ -63,6 +69,10 @@ def enable_monitoring(interface_name):
     os.system("iw "+ interface_name + " set monitor control")
     os.system("ip link set " + interface_name + " up")
     print(TGREEN + "done." + TWHITE)
+
+
+def packet_sniffer(packet):
+    print("TODO")
 
 #The main Program#
 check_root() #Check if the user is root
@@ -89,7 +99,8 @@ Press Ctrl+c to Exit
 while True:
     choice = input("Module Selection :>")
     if choice == "1":
-        start_sniffer()
+        s = conf.L2socket(iface=interface)
+        sniff(iface=interface,prn=packet_sniffer,store=0)
     elif choice == "2":
         handshake_grabber()
     elif choice == "3":
