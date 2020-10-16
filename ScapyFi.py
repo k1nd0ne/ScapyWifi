@@ -6,33 +6,53 @@ import signal
 import os
 
 #Gloabal variables:
+ap_list = []
 interface = ""
 TGREEN =  '\033[32m' # Green Text
 TWHITE = '\033[37m' #White (default) Text
 
-banner = """
-  ___                    ___ _
- / __| __ __ _ _ __ _  _| __(_)
- \__ \/ _/ _` | '_ \ || | _|| |
- |___/\__\__,_| .__/\_, |_| |_|
-              |_|   |__/
+def banner():
+    banner = """
+ ___                    ___ _
+/ __| __ __ _ _ __ _  _| __(_)
+\__ \/ _/ _` | '_ \ || | _|| |
+|___/\__\__,_| .__/\_, |_| |_|
+             |_|   |__/
 
 Version: 0.2
 Author: Guyard Félix
 Use for educational purpose only.
-
 """
+    print(banner)
+    print("+ Wifi interface in use : " + TGREEN +  str(interface) + TWHITE)
+    print("\nSelect the module you want to use:")
+
+
+    print("""
+
+    [1] -> Network Sniffer
+    [2] -> Handshake Grabber
+    [3] -> Handshake Cracker
+
+    Press Ctrl+c to Exit
+
+    """)
+
 #Tool Functions#
 
 
 #Handle the ctrl+C to disable the monitoring mode and restore network adapter.
 def signal_handler(signal,frame):
     print("\nDisabling monitoring mode on network adpater...",end='')
-    os.system("ip link set " + interface + " down")
-    os.system("iw "+ interface + " set type managed")
-    os.system("ip link set " + interface +" up")
-    os.system("NetworkManager")
-    print(TGREEN + "done" + TWHITE)
+    try:
+        os.system("ip link set " + interface + " down")
+        os.system("iw "+ interface + " set type managed")
+        os.system("ip link set " + interface +" up")
+        os.system("NetworkManager")
+        print(TGREEN + "done" + TWHITE)
+    except Exception as e:
+        print("Error when disabling monitor mode")
+        print(e)
     sys.exit(1)
 
 
@@ -56,51 +76,43 @@ def check_args():
         print("Interface not found.")
         exit(1)
 
-
     return sys.argv[2]
 
 
 #Enable monitoring mode on the given interface
 def enable_monitoring(interface_name):
     print("Activating monitoring mode on " + str(interface_name) + "...",end='')
-    os.system("killall wpa_supplicant")
-    os.system("killall NetworkManager")
-    os.system("ip link set " + interface_name + " down")
-    os.system("iw "+ interface_name + " set monitor control")
-    os.system("ip link set " + interface_name + " up")
-    print(TGREEN + "done." + TWHITE)
+    try:
+        os.system("killall wpa_supplicant")
+        os.system("killall NetworkManager")
+        os.system("ip link set " + interface_name + " down")
+        os.system("iw "+ interface_name + " set monitor control")
+        os.system("ip link set " + interface_name + " up")
+        print(TGREEN + "done." + TWHITE)
+    except Exception as e:
+        print("Error when activating monitoring mode:")
+        print(e)
 
-
-def packet_sniffer(packet):
-    print("TODO")
-
+def packet_handler(packet):
+    try:
+        if packet.addr2 not in ap_list:
+            ap_list.append(packet.addr2)
+            print("Access Point MAC: %s with SSID: %s " %(packet.addr2, packet.info))
+    except Exception as e:
+        print("Error getting Access Point information : ")
+        print(e)
 #The main Program#
 check_root() #Check if the user is root
 interface = check_args()
 os.system("clear")
-print(banner)
+banner()
 enable_monitoring(interface)
 signal.signal(signal.SIGINT,signal_handler) #Handle the ctrl+c command
-print("+ Wifi interface in use : " + TGREEN +  str(interface) + TWHITE)
-
-print("\nSelect the module you want to use:")
-
-
-print("""
-
-[1] -> Network Sniffer
-[2] -> Handshake Grabber
-[3] -> Handshake Cracker
-
-Press Ctrl+c to Exit
-
-""")
 
 while True:
     choice = input("Module Selection :>")
     if choice == "1":
-        s = conf.L2socket(iface=interface)
-        sniff(iface=interface,prn=packet_sniffer,store=0)
+        sniff(iface=interface,prn=packet_handler,count=10000)
     elif choice == "2":
         handshake_grabber()
     elif choice == "3":
