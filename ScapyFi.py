@@ -192,7 +192,8 @@ def deauth(ap):
     sendp(packet, inter=0.1, count=100, iface=interface, verbose=1)
 
 #This function is checking if the handshake is in the packet p.
-
+#It is saving the EAPOL paquet into a pcap file for later crack
+#Return TRUE if the handshake was grabbed successfully
 def checkForWPAHandshake(p):
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
     if EAPOL in p:
@@ -269,6 +270,8 @@ def menu():
             network_sniffer()
         elif choice == "2":
             handshake_grabber()
+            signal.signal(signal.SIGINT,signal_handler)
+            banner()
         elif choice == "3":
             handshake_cracker()
         else:
