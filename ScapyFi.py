@@ -19,6 +19,19 @@ chans = [1,2,3,4,5,6,7,8,9,10,11]
 TGREEN =  '\033[32m' # Green Text
 TWHITE = '\033[37m' #White (default) Text
 
+#AP class representing an access point
+class AP:
+    def __init__(self,mac,ssid,channel,cipher):
+        self.mac = mac
+        self.ssid = ssid
+        self.channel = channel
+        self.cipher = cipher
+    def print_ap(self):
+        print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
+
+
+
+#Banner function
 def banner():
     banner = """
  ___                    ___ _
@@ -46,17 +59,9 @@ Use for educational purpose only.
 
     """)
 
-class AP:
-    def __init__(self,mac,ssid,channel,cipher):
-        self.mac = mac
-        self.ssid = ssid
-        self.channel = channel
-        self.cipher = cipher
-    def print_ap(self):
-        print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
 
 #######################################
-#           TOOL FUNCTIONS            #
+#   WIRELESS RELATED FUNCTIONS        #
 #######################################
 
 #Handle the ctrl+C to disable the monitoring mode and restore network adapter.
@@ -168,7 +173,7 @@ def packet_handler(packet):
 #The network sniffer simply hop between channels and sniff the wireless network around the user.
 def network_sniffer():
     i= 0
-    print("[INFO] Press ctrl+c to stop the capture")
+    print("[INFO] Press Ctrl+c to stop the capture")
     signal.signal(signal.SIGINT,signal_handler2) #Handle the ctrl+c to not quit and return to main menu.
     while True:
         sniff(iface=interface,prn=packet_handler,count=5)
@@ -193,7 +198,8 @@ def deauth(ap):
 
 #This function is checking if the handshake is in the packet p.
 #It is saving the EAPOL paquet into a pcap file for later crack
-#Return TRUE if the handshake was grabbed successfully
+#Return TRUE if the handshake was grabbed successfully.
+#This function is used in the grab_handshake function when sniffing.
 def checkForWPAHandshake(p):
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
     if EAPOL in p:
@@ -206,7 +212,7 @@ def checkForWPAHandshake(p):
             client = p.addr1
         if client not in cli_list:
             cli_list.append(client)
-            print("New client identified : " + str(p.addr1) + "--->" + str(p.addr2))
+            print("New client identified : " + str(p.addr1) + "----HANDSHAKE--->" + str(p.addr2))
             to_frames.append(0)
             from_frames.append(0)
 
@@ -237,6 +243,11 @@ def grab_handshake(ap):
     p = sniff(iface=interface, stop_filter=checkForWPAHandshake)
     print("Handshake Grabbed!")
 
+
+
+#This is the handshake_grabber main function.
+#It is asking the user to select the AP they want to sniff
+#Then trigger the grab_handshake function to start the capture
 def handshake_grabber():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
@@ -277,7 +288,7 @@ def menu():
         else:
             print("Bad Input")
 
-#The main Program#
+#____________The main Program________________#
 check_root() #Check if the user is root
 interface = check_args()
 os.system("clear")
