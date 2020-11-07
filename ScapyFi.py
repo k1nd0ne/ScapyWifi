@@ -383,6 +383,7 @@ def crack_handshake(ap_ssid,pcap,wordlist):
             exit(1)
     print("KEY NOT FOUND...")
 
+#This function is interacting with the user and launch the crack on the specified handshake and wordlist
 def handshake_cracker():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     path = './handshake/'
