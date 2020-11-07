@@ -3,7 +3,11 @@
 from scapy.all import *
 import sys
 import signal
+import itertools
+import hashlib
+import hmac
 import os
+from pprint import pprint
 from pbkdf2 import PBKDF2
 
 #Gloabal variables and banner:
@@ -282,47 +286,56 @@ def handshake_grabber():
 #####################################
 #       CRACKING FUNCTIONS          #
 #####################################
+
+def customPRF512(key,A,B):
+    blen = 64
+    i    = 0
+    R    = ''
+    while i<=((blen*8+159)/160):
+        hmacsha1 = hmac.new(key,msg=A+bytes(0x00)+B+bytes(i),digestmod='sha1')
+        i+=1
+        R = R+str(hmacsha1.digest())
+    return R[:blen]
+
+
 def crack_handshake(ap,wordlist):
+    packets = rdpcap('./handshake/handshake.pcap') # A Changer
 
-    #First I need to bind 802.1X each field
-    for i in range (0,3):
-        packet = ap.frames[i]
-        payload = packet[30:-4]
-        eapol_frame = payload[4:]
-        version = eapol_frame[0]
-        eapol_frame_type = eapol_frame[1]
-        body_length = eapol_frame[2:4]
-        key_type = eapol_frame[4]
-        key_info = eapol_frame[5:7]
-        key_length = eapol_frame[7:9]
-        replay_counter = eapol_frame[9:17]
-        nonce = eapol_frame[17:49]
-        key_iv = eapol_frame[49:65]
-        key_rsc = eapol_frame[65:73]
-        key_id = eapol_frame[73:81]
-        mic = eapol_frame[81:97]
-        wpa_key_length = eapol_frame[97:99]
-        wpa_key = eapol_frame[99:]
+    __NULL_ = b'\x00'
+    ssid = "Test_AP" # à Changer
+    psk = "password" # à changer
+    pke = "Pairwise key expansion"    # Standard Set Value
+    ap_mac = packets[0].addr2.replace(':','',5)
+    cl_mac = packets[0].addr1.replace(':','',5)
+    mac_ap = binascii.unhexlify(ap_mac)
+    mac_cl = binascii.unhexlify(cl_mac)
+    anonce = packets[0].load[13:45]
+    snonce = packets[1].load[13:45]
+    version = bytes(packets[1].getlayer(EAPOL).version)
+    p_type = bytes(packets[1].getlayer(EAPOL).type)
+    p_len = bytes(packets[1].getlayer(EAPOL).len)
+    mic = binascii.hexlify(packets[1].getlayer(Raw).load)[154:186]
+    print(mic)
+    payload = binascii.a2b_hex(binascii.hexlify(bytes(version)\
+                                        +p_type\
+                                        +__NULL_\
+                                        +p_len\
+                                        +binascii.a2b_hex(binascii.hexlify(packets[1].getlayer(Raw).load)[:154])\
+                                        +__NULL_*16\
+                                        +binascii.a2b_hex(binascii.hexlify(packets[1].getlayer(Raw).load)[186:])))
 
-        #I also need to isolate the nonces
-        if i == 0:
-            ap_nonce = nonce
-        elif i == 1:
-            cl_nonce = nonce
-        elif i == 2:
-            continue
-        else:
-            eapol_frame_zeroed_mic = b''.join([
-                                eapol_frame[:81],
-                                b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
-                                eapol_frame[97:99]
-                            ])
+    data = version+p_type+__NULL_+p_len+packets[1].getlayer(Raw).load
 
-    dico = open(wordlist, 'w')
+
+    key_data = min(mac_ap, mac_cl) + max(mac_ap, mac_cl) + min(anonce,snonce) + max(anonce,snonce)
+    pmk = PBKDF2(psk, ssid, 4096).read(32)
+    ptk = customPRF512(bytes(pmk), bytes(pke,encoding='utf8'), bytes(key_data))
+
+    mic = hmac.new(bytes(ptk[0:16],encoding='utf8'), msg=payload, digestmod='sha1').digest()
+
+    print(binascii.hexlify(mic))
+
     print("Cracking Handshake...")
-
-
-
 
 def handshake_cracker():
     i = 0
@@ -345,7 +358,7 @@ def handshake_cracker():
         except:
             print("Bad input")
     if valid == True:
-        crack_handshake(ap_list[choice])
+        crack_handshake(ap_list[choice],"./wordlist/wordlist-1")
 
 
 
