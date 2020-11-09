@@ -62,7 +62,8 @@ There is 3 modules developped :
 ### Guide
 When launched, ScapyFi will turn on the monitoring mode on the Wireless NIC then the main menu will pop out. You'll need to select the module you want to use:
 
-CAPTURE
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_1.png)
+
 
 The module have to be used in the following order to desmonstrate the Attack : 
 Sniffer->Grabber->Cracker
@@ -71,7 +72,7 @@ Start the Sniffer and see if you can find the Test access point you configured i
 
 
 
-CAPTURE
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_2.png)
 
 
 
@@ -79,13 +80,14 @@ Next It is time to try to listen for the handshake. There is 2 ways grab the han
 * Connect a new client to the AP when sniffing (Faster less realist)
 * Connect a new client to the AP then launch the sniffing. ScapyFi will send deauthentication messages to the AP and will force the client to make the handshake process. (This process is not always successfull)
 
-CAPTURES
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_3.png)
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_4.png)
 
 
 When the handshake is grabbed. The handshake process is going to be stored into the **./handshake/handshake-APNAME.pcap** file. You can launch the cracking module and try to bruteforce the password of the AP you defined with a wordlist of your choice. 
 
-CAPTURES
-
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_5.png)
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_6.png)
 
 
 ## Conclusion
