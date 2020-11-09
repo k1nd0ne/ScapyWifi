@@ -41,7 +41,7 @@ As an attacker, we want to find the PSK. The flaw in WPA2 is that if we sniff th
 Here is an example of the Attack in the figure bellow : 
 
 
-![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/screen_7.png)
+![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/screen_7.jpeg)
 
 
 ## Proof of concept with ScapyFi
