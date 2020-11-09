@@ -1,9 +1,8 @@
 # ScapyFi Project
 
-ScapyFi is a project made in the context of the Master SSIR Class to lean about the 802.1X protocol vulnerability. 
+ScapyFi is a project made in the context of the Master SSIR Class to learn about one of the 802.1X protocol vulnerability. 
 
-In this document, you will find the knowledge aquired during this project and 
-how the step taken to create this Python Script. The instructor gave us the following requirements to develop with scapy/python
+In this document, you will find the knowledge aquired during this project and the step taken to create this Python Script. The instructor gave us the following requirements to develop with scapy/python
 
 * Sniff the local wireless area
 * Grab the handshake on a purpose target setup Access Point 
