@@ -2,21 +2,21 @@
 
 ScapyFi is a project made in the context of the Master SSIR Class to learn about one of the 802.1X protocol vulnerability. 
 
-In this document, you will find the knowledge aquired during this project and the step taken to create this Python Script. The instructor gave us the following requirements to develop with scapy/python
+In this document, you will find the knowledge acquired during this project and the step taken to create this Python Script. The instructor gave us the following requirements to develop with scapy/python
 
-* Sniff the local wireless area
-* Grab the handshake on a purpose target setup Access Point 
-* Crack the grabbed handshake with a dictionnary attack
+* Sniff the local wireless area.
+* Grab the handshake on a purpose target setup Access Point .
+* Crack the grabbed handshake with a dictionary attack.
 
 
-## WPA2-PSK and it's Weekness
-In this section we will discuss how WPA2-PSK authentication works and what is the weekness associated with it. (We will not talk about the KRACK weakness wich is out context for this project)
+## WPA2-PSK and it's Weakness
+In this section we will discuss how WPA2-PSK authentication works and what is the weekness associated with it. (We will not talk about the KRACK weakness which is out context for this project)
 
 ### Authentication process
 
-When a client (or supplicant) want to connect to an access point (or authenticator) using WPA2-PSK authentication process, both of the systems will try to independently know what is called a pre-shared-key (PSK). The PSK can be seen as the secret code that you enter in you AP but converted as a cryptographic value. This Key should not be transmitted directly over the network because of man in the middle attacks. To not disclose this key, each end is encrypting a message using the Pairwise-Master-Key (or 'PMK') that they have calculated (localy) and transmit it each way. Then, they decrypt the received message. 
+When a client (or supplicant) want to connect to an access point (or authenticator) using WPA2-PSK authentication process, both of the systems will try to independently know what is called a pre-shared-key (PSK). The PSK can be seen as the secret code that you enter in you AP but converted as a cryptographic value. This Key should not be transmitted directly over the network because of man in the middle attacks. To not disclose this key, each end is encrypting a message using the Pairwise-Master-Key (or 'PMK') that they have calculated (locally) and transmit it each way. Then, they decrypt the received message. 
 
-The 4 way handshake is used tp establish a new Key called the Pairwise-Transient-Key (or 'PTK') wich use the following concatenated data: 
+The 4 way handshake is used tp establish a new Key called the Pairwise-Transient-Key (or 'PTK') which use the following concatenated data: 
 
 * PMK.
 * Access Point Nonce.
@@ -35,7 +35,7 @@ The data result is then processed through a Pseudo-Random-Function (PRF). Next, 
 
 ### The weekness in WPA2-PSK
 
-As an attacker, we want to find the PSK. The flaw in WPA2 is that if we sniff the handshake we have all the necessary elements to calculate our own PMK with a "random" PSK. With this PMK and the sniffed ANonce,SNonce and client/AP MAC addresses, we can create our own EPOL frame and calculte it's MIC. If our MIC is the same as the Client's, the PSK we tried is good and we figured out the password ! 
+As an attacker, we want to find the PSK. The flaw in WPA2 is that if we sniff the handshake we have all the necessary elements to calculate our own PMK with a "random" PSK. With this PMK and the sniffed ANonce,SNonce and client/AP MAC addresses, we can create our own EPOL frame and calculate it's MIC. If our MIC is the same as the Client's, the PSK we tried is good and we figured out the password ! 
 
 Here is an example of the Attack in the figure bellow : 
 
@@ -45,13 +45,13 @@ Here is an example of the Attack in the figure bellow :
 
 ## Proof of concept with ScapyFi
 
-It is now time for us to create a tool to perform the actual attack with Scapy, which will help us to sniff 802.X trafic and perform frame decomposition. To make the sniffing process work a wifi NIC that support the promiscious mode is necessary. 
-I have used the **802.11ac AWUS036ACH Wireless antena**, python 3 and kali linux for the project developpement.
+It is now time for us to create a tool to perform the actual attack with Scapy, which will help us to sniff 802.X trafic and perform frame decomposition. To make the sniffing process work a WiFi NIC that support the promiscious mode is necessary. 
+I have used the **802.11ac AWUS036ACH Wireless antenna**, python 3 and kali linux for the project developement.
 
 
 ### Modules 
 
-There is 3 modules developped : 
+There are 3 modules developed : 
 
 * Sniffer : Used to discover Wireless AP around you.
 * Handshake Grabber : Used to Sniff a particular AP for the EAPOL handshake Frames
@@ -64,7 +64,7 @@ When launched, ScapyFi will turn on the monitoring mode on the Wireless NIC then
 ![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_1.png)
 
 
-The module have to be used in the following order to desmonstrate the Attack : 
+The module have to be used in the following order to demonstrate the Attack : 
 Sniffer->Grabber->Cracker
 
 Start the Sniffer and see if you can find the Test access point you configured in the AP list. (**Remember it is illegal to hack into an AP you don't own**). Hit the **CTRL+C** control to end the sniffing process.
@@ -75,9 +75,9 @@ Start the Sniffer and see if you can find the Test access point you configured i
 
 
 
-Next It is time to try to listen for the handshake. There is 2 ways grab the handshake : 
+Next, it is time to try to listen for the handshake. There is 2 ways grab the handshake : 
 * Connect a new client to the AP when sniffing (Faster less realist)
-* Connect a new client to the AP then launch the sniffing. ScapyFi will send deauthentication messages to the AP and will force the client to make the handshake process. (This process is not always successfull)
+* Connect a new client to the AP then launch the sniffing. ScapyFi will send deauthentication messages to the AP and will force the client to make the handshake process. (This process is not always successful)
 
 ![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_3.png)
 ![alt text](https://github.com/k1nd0ne/ScapyWifi/blob/master/screnshots/Screen_4.png)
