@@ -30,12 +30,12 @@ The data result is then processed through a Pseudo-Random-Function (PRF). Next, 
 
 * First, the access point transmits an ANonce key to the client.
 * Next, the client use the ANonce to build the PTK and then submits the SNonce and Message Integrity code MIC to the access point.
-* The access then construct the GTK, wich is a sequence number that is used to detect replay attacks on the client, and a Message Integrity Code (MIC).
+* The access point, then construct the Group Temporal Key (GTK), wich is a sequence number that is used to detect replay attacks on the client, and a Message Integrity Code (MIC).
 * Finally, the client sends an acknowledgment (ACK) to the access point to confirm that it is now ready to transmit encrypted frames. 
 
 ### The weekness in WPA2-PSK
 
-As an attacker, we want to find the PSK. The flaw in WPA2 is that if we sniff the handshake we have all the necessary elements to calculate our own PMK with a "random" PSK. With this PMK and the sniffed ANonce,SNonce and client/AP MAC addresses, we can create our own EPOL frame and calculate it's MIC. If our MIC is the same as the Client's, the PSK we tried is good and we figured out the password ! 
+As an attacker, we want to find the PSK. The flaw in WPA2 is that if we sniff the handshake we have all the necessary elements to calculate our own PMK with a "random" PSK. With this PMK and the sniffed ANonce,SNonce and Client/AP MAC addresses, we can create our own PTK and calculate the associated MIC like if we were the client. If our MIC is the same as the client's, the PSK we tried is good and we figured out the password ! 
 
 Here is an example of the Attack in the figure bellow : 
 
