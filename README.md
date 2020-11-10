@@ -30,7 +30,7 @@ The data result is then processed through a Pseudo-Random-Function (PRF). Next, 
 
 * First, the access point transmits an ANonce key to the client.
 * Next, the client use the ANonce to build the PTK and then submits the SNonce and Message Integrity code MIC to the access point.
-* The access then construct the GTK, wich is a sequence number that is used to detect replay attacks on the client, and a Message Integrity Code (MIC).
+* The access point, then construct the Group Temporal Key (GTK), wich is a sequence number that is used to detect replay attacks on the client, and a Message Integrity Code (MIC).
 * Finally, the client sends an acknowledgment (ACK) to the access point to confirm that it is now ready to transmit encrypted frames. 
 
 ### The weekness in WPA2-PSK
