@@ -10,7 +10,7 @@ In this document, you will find the knowledge acquired during this project and t
 
 
 ### Contribute to this project
-ScapyFi is currently implementing the WPA2-PSK attack. Fell free to contribute to this project and add other types of attacks (WEP, KCK, WPA,...).
+ScapyFi is currently implementing the WPA2-PSK attack. Fell free to contribute to this project and add other types of attacks (FMS, PTW, KRACK...)
 **It is required to use Scapy**
 
 ## WPA2-PSK and it's Weakness
@@ -49,7 +49,7 @@ Here is an example of the Attack in the figure bellow :
 
 ## Proof of concept with ScapyFi
 
-It is now time for us to create a tool to perform the actual attack with Scapy, which will help us to sniff 802.X trafic and perform frame decomposition. To make the sniffing process work a WiFi NIC that support the promiscious mode is necessary. 
+It is now time for us to create a tool to perform the actual attack with Scapy, which will help us to sniff 802.X trafic and perform frame decomposition. To make the sniffing process work a WiFi NIC that support the monitoring mode is necessary. 
 I have used the **802.11ac AWUS036ACH Wireless antenna**, python 3 and kali linux for the project developement.
 
 
