@@ -9,6 +9,10 @@ In this document, you will find the knowledge acquired during this project and t
 * Crack the grabbed handshake with a dictionary attack.
 
 
+### Contribute to this project
+ScapyFi is currently implementing the WPA2-PSK attack. Fell free to contribute to this project and add other types of attacks (WEP, KCK, WPA,...).
+**It is required to use Scapy**
+
 ## WPA2-PSK and it's Weakness
 In this section we will discuss how WPA2-PSK authentication works and what is the weekness associated with it. (We will not talk about the KRACK weakness which is out context for this project)
 
