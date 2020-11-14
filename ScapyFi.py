@@ -84,7 +84,7 @@ Use for educational purpose only.
 
 #Handle the ctrl+C to disable the monitoring mode and restore network adapter.
 def signal_handler(signal,frame):
-    print("\nDisabling monitoring mode on network adpater...",end='')
+    print("\nDisabling monitoring mode on wireless NIC...",end='')
     try:
         os.system("ip link set " + interface + " down")
         os.system("iw "+ interface + " set type managed")
