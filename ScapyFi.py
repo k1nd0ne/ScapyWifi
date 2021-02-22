@@ -27,7 +27,7 @@ except:
 
 #Global variables and banner:
 OSX = True
-if os.path.isfile("/bin/iwconfig"):
+if os.path.isfile("/usr/sbin/iwconfig"):
     OSX = False
 ap_list = []
 cli_list = []
